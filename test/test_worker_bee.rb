@@ -7,7 +7,7 @@ class TestWorkerBee < MiniTest::Unit::TestCase
 
     bee.input(*(1..25).to_a)
 
-    bee.work(20) { |n| sleep 0.25; n ** 2 }
+    bee.work(20) { |n| n ** 2 }
     bee.finish
     bee.work(5)  { |n| Math.sqrt n }
     bee.finish
