@@ -1,7 +1,7 @@
 require "minitest/autorun"
 require "worker_bee"
 
-class TestWorkerBee < MiniTest::Unit::TestCase
+class TestWorkerBee < Minitest::Test
   def test_sanity_manual
     bee = WorkerBee.new
 
