@@ -1,6 +1,6 @@
 = worker_bee
 
-* http://seattlerb.org/
+home :: http://seattlerb.org/
 
 == DESCRIPTION:
 
