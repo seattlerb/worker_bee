@@ -9,17 +9,36 @@ WorkerBee encapsulates a simple pipeline of workers.
 == FEATURES/PROBLEMS:
 
 * Simple API to wrap up the usual Thread/Queue patterns.
+* Expressive shortcuts to make the pipeline really easy to read.
 
 == SYNOPSIS:
 
     bee = WorkerBee.new
-
     bee.input enum_of_work_to_do
-
     bee.work(20) { |work| ... stuff with input ... }
     bee.work(5)  { |work| ... stuff with results of previous ... }
-
     bee.results # the final set of results
+
+Example of shortcuts:
+
+    bee = WorkerBee.new
+    bee.input(*urls)
+    bee.work     { |url| url_to_api    url } # -> api_url
+    bee.work(20) { |url| url_to_ary    url } # -> [ issues_or_pulls ]
+    bee.work     { |ary| issues_to_url ary } # -> url_to_check
+    bee.compact                              # -> url
+    bee.results.sort
+
+versus:
+
+    WorkerBee.new(self) # self = receiver of send for `then`s below
+      .input(*urls)
+      .then(:url_to_api)
+      .then(:url_to_ary, n:20)
+      .then(:issues_to_url)
+      .compact
+      .results
+      .sort
 
 == REQUIREMENTS:
 
