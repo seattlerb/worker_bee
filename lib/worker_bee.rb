@@ -68,8 +68,6 @@ class WorkerBee
 
   attr_accessor :context
 
-  attr_accessor :count # :nodoc: internal counter only
-
   ##
   # Creates a new WorkerBee with one queue and no pipelines of workers.
 
@@ -77,19 +75,35 @@ class WorkerBee
     self.tasks   = [BQ.new]
     self.workers = []
     self.context = context || self
-    self.count   = 0
-  end
-
-  def next_count # :nodoc:
-    self.count += 1
-    self.count
   end
 
   ##
-  # Add work to the front of the pipeline.
+  # The front of the pipeline
 
-  def input *work
-    tasks.first.concat work
+  def front
+    tasks.first
+  end
+
+  ##
+  # The current back of the pipeline
+
+  def back
+    tasks.last
+  end
+
+  ##
+  # Add another queue to back of the pipeline.
+
+  def add_to_pipeline
+    tasks << BQ.new
+    back
+  end
+
+  ##
+  # Add +data+ to the front of the pipeline of tasks.
+
+  def input *data
+    front.concat data
     self
   end
 
@@ -148,8 +162,8 @@ class WorkerBee
   # this pipeline.
 
   def work n = 1, type:Worker, &block
-    input  = tasks[self.count]
-    output = tasks[self.next_count] = BQ.new
+    input  = back
+    output = add_to_pipeline
 
     workers << n.times.map { type.new input, output, &block }
 
@@ -168,8 +182,8 @@ class WorkerBee
     # queue.
 
     def call task
-      result = work[task]
-      output << result if result
+      out = work[task]
+      output << out if out
     end
   end
 
@@ -177,7 +191,7 @@ class WorkerBee
   # Remove all non-truthy tasks.
 
   def compact
-    work klass:CompactWorker, &:itself
+    work type:CompactWorker, &:itself
   end
 
   ##
@@ -199,8 +213,8 @@ class WorkerBee
   # Flatten out all tasks. Lets you have one task create arrays of
   # subtasks.
 
-  def flatten n:1, &work
-    work n, klass:CompactWorker, &:itself
+  def flatten
+    work type:FlattenWorker, &:itself
   end
 
   ##
@@ -216,11 +230,11 @@ class WorkerBee
   # Filter task out if +work+ is doesn't evaluate to truthy. Eg:
   #
   #   bee.input(*Dir["**/*"])
-  #   bee.filter(1) { |path| File.file? path }
+  #   bee.filter    { |path| File.file? path }
   #   bee.filter(4) { |path| `file -b #{path}` =~ /Ruby script/ }
   #   ...
 
-  def filter n, &work
+  def filter n = 1, &work
     work n, type:Filter, &work
   end
 
@@ -238,9 +252,11 @@ class WorkerBee
   end
 
   ##
-  # Finish all work, from front to back.
+  # Finish all work on all tasks, from front to back.
 
   def finish
+    # TODO: zip workers and tasks?
+
     workers.each do |pool|
       input = pool.first.input
 
@@ -260,6 +276,6 @@ class WorkerBee
   def results
     finish
 
-    tasks[count].drain - [SENTINAL]
+    back.drain - [SENTINAL]
   end
 end
