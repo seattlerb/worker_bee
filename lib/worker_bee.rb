@@ -143,15 +143,15 @@ class WorkerBee
   end
 
   ##
-  # Add a pipeline of work with +n+ parallel workers, using +klass+
-  # for the worker type performing +block+ as the task for this
-  # pipeline.
+  # Add a pipeline of work with +n+ parallel workers of a certain
+  # +type+ (defaulting to Worker) performing +block+ as the task for
+  # this pipeline.
 
-  def work n = 1, klass:Worker, &block
+  def work n = 1, type:Worker, &block
     input  = tasks[self.count]
     output = tasks[self.next_count] = BQ.new
 
-    workers << n.times.map { klass.new input, output, &block }
+    workers << n.times.map { type.new input, output, &block }
 
     self
   end
