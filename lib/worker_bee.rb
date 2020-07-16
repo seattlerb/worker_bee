@@ -204,6 +204,27 @@ class WorkerBee
   end
 
   ##
+  # A worker that passes task through only if the work is truthy.
+
+  class Filter < Worker
+    def call task
+      output << task if work[task]
+    end
+  end
+
+  ##
+  # Filter task out if +work+ is doesn't evaluate to truthy. Eg:
+  #
+  #   bee.input(*Dir["**/*"])
+  #   bee.filter(1) { |path| File.file? path }
+  #   bee.filter(4) { |path| `file -b #{path}` =~ /Ruby script/ }
+  #   ...
+
+  def filter n, &work
+    work n, type:Filter, &work
+  end
+
+  ##
   # Convenience function:
   #
   #   bee.then :msg_name
