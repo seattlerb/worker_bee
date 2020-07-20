@@ -69,12 +69,19 @@ class WorkerBee
   attr_accessor :context
 
   ##
+  # A thread that runs parallel to everything else. Can be used to
+  # show progress or do periodic cleanup. Killed by #finish.
+
+  attr_accessor :updater
+
+  ##
   # Creates a new WorkerBee with one queue and no pipelines of workers.
 
   def initialize context = nil
     self.tasks   = [BQ.new]
     self.workers = []
     self.context = context || self
+    self.updater = nil
   end
 
   ##
@@ -105,6 +112,44 @@ class WorkerBee
   def input *data
     front.concat data
     self
+  end
+
+  ##
+  # Meant to be used in an INT trap. Clears the remaining input and
+  # then finishes all work.
+
+  def interrupted!
+    front.clear
+    finish
+  end
+
+  ##
+  # Set up an interrupt handler that cleanly finishes.
+
+  def trap_interrupt!
+    trap("INT") { $stderr.puts "finishing..."; interrupted! }
+    self
+  end
+
+  ##
+  # Schedules a side task to run every +time+ seconds parallel to
+  # everything else. Shut down by #finish.
+
+  def periodic time = 5, &update
+    self.updater = Thread.new do
+      loop do
+        update.call
+        sleep time
+      end
+    end
+    self
+  end
+
+  ##
+  # Returns the current counts of all tasks in the pipeline.
+
+  def counts
+    tasks.map(&:size)
   end
 
   ##
@@ -268,6 +313,8 @@ class WorkerBee
         thread.join
       end
     end
+
+    updater.kill if updater
   end
 
   ##
