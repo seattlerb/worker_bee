@@ -7,9 +7,9 @@ class TestWorkerBee < Minitest::Test
 
     bee.input(*(1..25).to_a)
 
-    bee.work(20) { |n| n ** 2 }
+    bee.work(n:20) { |n| n ** 2 }
     bee.finish
-    bee.work(5)  { |n| Math.sqrt n }
+    bee.work(n:5)  { |n| Math.sqrt n }
     bee.finish
 
     expected = (1..25).to_a
@@ -21,9 +21,9 @@ class TestWorkerBee < Minitest::Test
 
     bee.input(*(1..25).to_a)
 
-    bee.work(20) { |n| n ** 2 }
+    bee.work(n:20) { |n| n ** 2 }
     # bee.finish # commented out on purpose
-    bee.work(5)  { |n| Math.sqrt n }
+    bee.work(n:5)  { |n| Math.sqrt n }
 
     expected = (1..25).to_a
     assert_equal expected, bee.results.map(&:to_i).sort

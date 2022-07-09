@@ -15,6 +15,18 @@ require 'thread'
 #       .compact
 #       .results
 #       .sort
+#
+# Helper methods:
+#
+# * input *data
+# * trap_interrupt!
+# * periodic time = 5, &update
+# * work n:1, &block
+# * compact
+# * flatten
+# * filter n:1, &work
+# * then n:1, msg_name
+# * results
 
 class WorkerBee
   VERSION = "1.0.0"     # :nodoc:
@@ -69,19 +81,19 @@ class WorkerBee
   attr_accessor :context
 
   ##
-  # A thread that runs parallel to everything else. Can be used to
+  # Threads that run parallel to everything else. Can be used to
   # show progress or do periodic cleanup. Killed by #finish.
 
-  attr_accessor :updater
+  attr_accessor :updaters
 
   ##
   # Creates a new WorkerBee with one queue and no pipelines of workers.
 
   def initialize context = nil
-    self.tasks   = [BQ.new]
-    self.workers = []
-    self.context = context || self
-    self.updater = nil
+    self.tasks    = [BQ.new]
+    self.workers  = []
+    self.context  = context || self
+    self.updaters = []
   end
 
   ##
@@ -119,7 +131,11 @@ class WorkerBee
   # then finishes all work.
 
   def interrupted!
-    front.clear
+    non_empty = tasks.find { |pool| ! pool.empty? }
+    non_empty.clear if non_empty
+
+    trap "INT", "EXIT"
+
     finish
   end
 
@@ -136,9 +152,9 @@ class WorkerBee
   # everything else. Shut down by #finish.
 
   def periodic time = 5, &update
-    self.updater = Thread.new do
+    self.updaters << Thread.new do
       loop do
-        update.call
+        update.call self
         sleep time
       end
     end
@@ -149,7 +165,7 @@ class WorkerBee
   # Returns the current counts of all tasks in the pipeline.
 
   def counts
-    tasks.map(&:size)
+    tasks.zip(workers).map { |t, w| t.size + (w || []).count(&:working?) }
   end
 
   ##
@@ -157,6 +173,11 @@ class WorkerBee
   # into the output queue until it gets the +SENTINAL+ value.
 
   class Worker < Thread
+    ##
+    # True if working on a task
+    attr_accessor :working
+    alias working? working
+
     ##
     # The input queue of work
 
@@ -179,6 +200,7 @@ class WorkerBee
       self.input  = input
       self.output = output
       self.work   = work
+      self.working = false
 
       self.abort_on_exception = true
 
@@ -188,7 +210,9 @@ class WorkerBee
 
           break if task == SENTINAL
 
+          self.working = true
           call task
+          self.working = false
         end
       end
     end
@@ -206,7 +230,7 @@ class WorkerBee
   # +type+ (defaulting to Worker) performing +block+ as the task for
   # this pipeline.
 
-  def work n = 1, type:Worker, &block
+  def work n:1, type:Worker, &block
     input  = back
     output = add_to_pipeline
 
@@ -248,9 +272,7 @@ class WorkerBee
     # +output+ queue.
 
     def call task
-      work[task].each do |out|
-        output << out
-      end
+      output.concat work[task]
     end
   end
 
@@ -275,25 +297,51 @@ class WorkerBee
   # Filter task out if +work+ is doesn't evaluate to truthy. Eg:
   #
   #   bee.input(*Dir["**/*"])
-  #   bee.filter    { |path| File.file? path }
-  #   bee.filter(4) { |path| `file -b #{path}` =~ /Ruby script/ }
+  #   bee.filter      { |path| File.file? path }
+  #   bee.filter(n:4) { |path| `file -b #{path}` =~ /Ruby script/ }
   #   ...
 
-  def filter n = 1, &work
-    work n, type:Filter, &work
+  def filter n:1, &work
+    work n:n, type:Filter, &work
+  end
+
+  def grep arg, n:1
+    work(n:n) { |data| data.grep arg }
+  end
+
+  def map arg, n:1
+    work(n:n) { |data| data.send arg }
+  end
+
+  def grep_v_clear arg, n:1
+    work(n:n) { |data| data.grep_v(arg).each(&:clear); data }
+  end
+
+  def non_empty n:1
+    work(n:n) { |data| data.reject(&:empty?) }
+  end
+
+  def match arg, n:1
+    work(n:n) { |data| arg === data }
   end
 
   ##
   # Convenience function:
   #
-  #   bee.then :msg_name
+  #   bee.then :msg_name, n:3
   #
   # is a shortcut equivalent to:
   #
-  #   bee.work(n) { |task| msg_name task }
+  #   bee.work(3) { |task| msg_name task }
 
   def then msg_name, n:1
-    work(n) { |obj| context.send msg_name, obj }
+    m = context.method(msg_name) rescue nil
+    if m then
+      work(n:n) { |obj| context.send msg_name, obj }
+    else
+      warn "warning: prototyping #{msg_name}"
+      work(n:n) { |obj| obj }
+    end
   end
 
   ##
@@ -314,7 +362,7 @@ class WorkerBee
       end
     end
 
-    updater.kill if updater
+    updaters.each(&:kill)
   end
 
   ##
