@@ -27,6 +27,7 @@ require 'thread'
 # * filter n:1, &work
 # * then n:1, msg_name
 # * results
+# * catch_up!
 
 class WorkerBee
   VERSION = "1.0.0"     # :nodoc:
@@ -342,6 +343,17 @@ class WorkerBee
       warn "warning: prototyping #{msg_name}"
       work(n:n) { |obj| obj }
     end
+  end
+
+  def catch_up!
+    updaters = self.updaters
+    self.updaters = nil
+
+    input = self.results
+    bee = self.class.new(self.context)
+    bee.input(*input)
+    bee.updaters = updaters
+    bee
   end
 
   ##
