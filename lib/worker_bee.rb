@@ -21,6 +21,7 @@ require 'thread'
 # * input *data
 # * trap_interrupt!
 # * periodic time = 5, &update
+# * show_progress([cols])
 # * work n:1, &block
 # * compact
 # * flatten
@@ -160,6 +161,25 @@ class WorkerBee
       end
     end
     self
+  end
+
+  ##
+  # Print out the +columns+, and then periodically print counts to
+  # show progress.
+
+  def show_progress(columns = nil)
+    puts columns.join "\t" if columns
+    periodic do
+      print_progress
+    end
+  end
+
+  ##
+  # Print 1 line of pipeline counts.
+
+  def print_progress
+    print "\r"
+    print counts.join "\t"
   end
 
   ##
@@ -375,6 +395,8 @@ class WorkerBee
     end
 
     updaters.each(&:kill)
+
+    self
   end
 
   ##
