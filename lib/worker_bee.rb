@@ -16,19 +16,28 @@ require 'thread'
 #       .results
 #       .sort
 #
-# Helper methods:
+# General Helper methods:
 #
 # * input *data
 # * trap_interrupt!
 # * periodic time = 5, &update
 # * show_progress([cols])
+# * catch_up!
+# * finish
+# * results
+#
+# Data Transformers / Filters:
+#
 # * work n:1, &block
 # * compact
-# * flatten
 # * filter n:1, &work
-# * then n:1, msg_name
-# * results
-# * catch_up!
+# * flatten
+# * grep arg, n:1
+# * grep_v_clear arg, n:1
+# * map arg, n:1
+# * match arg, n:1
+# * non_empty n:1
+# * then msg_name, n:1
 
 class WorkerBee
   VERSION = "1.0.0"     # :nodoc:
@@ -250,6 +259,8 @@ class WorkerBee
   # Add a pipeline of work with +n+ parallel workers of a certain
   # +type+ (defaulting to Worker) performing +block+ as the task for
   # this pipeline.
+  #
+  #   bee.work(n:3) { |task| do_the_work task }
 
   def work n:1, type:Worker, &block
     input  = back
@@ -278,7 +289,12 @@ class WorkerBee
   end
 
   ##
-  # Remove all non-truthy tasks.
+  # Add a pipeline of work that removes all non-truthy tasks.
+  #
+  #   bee
+  #     .input(*urls)
+  #     .then(:url_or_nil)
+  #     .compact
 
   def compact
     work type:CompactWorker, &:itself
@@ -298,8 +314,13 @@ class WorkerBee
   end
 
   ##
-  # Flatten out all tasks. Lets you have one task create arrays of
-  # subtasks.
+  # Add a pipeline of work that flattens out all tasks. Lets you have
+  # one task create arrays of subtasks.
+  #
+  #     bee
+  #       .input(*urls)
+  #       .then(:fetch_jobs, n:20)
+  #       .flatten
 
   def flatten
     work type:FlattenWorker, &:itself
@@ -315,32 +336,72 @@ class WorkerBee
   end
 
   ##
-  # Filter task out if +work+ is doesn't evaluate to truthy. Eg:
+  # Add a pipeline of work with +n+ parallel workers that filter
+  # tasks out if +work+ is doesn't evaluate to truthy. Eg:
   #
-  #   bee.input(*Dir["**/*"])
-  #   bee.filter      { |path| File.file? path }
-  #   bee.filter(n:4) { |path| `file -b #{path}` =~ /Ruby script/ }
-  #   ...
+  #   bee
+  #     .input(*Dir["**/*"])
+  #     .filter      { |path| File.file? path }
+  #     .filter(n:4) { |path| `file -b #{path}` =~ /Ruby script/ }
 
   def filter n:1, &work
     work n:n, type:Filter, &work
   end
 
+  ##
+  # Add a pipeline of work with +n+ parallel workers that filter tasks
+  # that match +arg+ pattern (regexp or anything that responds to
+  # +===+).
+  #
+  #   bee
+  #     .input(*Dir["**/*"])
+  #     .grep(/\.rb$|Rakefile/)
+
   def grep arg, n:1
     work(n:n) { |data| data.grep arg }
   end
+
+  ##
+  # Add a pipeline of work with +n+ parallel workers that maps tasks
+  # by calling +arg+ on them and return the results for the next
+  # input.
+  #
+  #   bee.map(:to_s)
 
   def map arg, n:1
     work(n:n) { |data| data.send arg }
   end
 
+  ##
+  # Add a pipeline of work with +n+ parallel workers that calls clear
+  # on all data that does not match pattern +arg+. Usually followed by
+  # +non_empty+.
+  #
+  #   bee
+  #     .grep_v_clear(/ruby/)
+  #     .non_empty
+
   def grep_v_clear arg, n:1
     work(n:n) { |data| data.grep_v(arg).each(&:clear); data }
   end
 
+  ##
+  # Add a pipeline of work with +n+ parallel workers that removes all
+  # empty data.
+  #
+  #   bee
+  #     .grep_v_clear(/ruby/)
+  #     .non_empty
+
   def non_empty n:1
     work(n:n) { |data| data.reject(&:empty?) }
   end
+
+  ##
+  # Add a pipeline of work with +n+ parallel workers that finds data
+  # matching +arg+ by calling +===+.
+  #
+  #   bee.match(matcher)
 
   def match arg, n:1
     work(n:n) { |data| arg === data }
@@ -353,7 +414,11 @@ class WorkerBee
   #
   # is a shortcut equivalent to:
   #
-  #   bee.work(3) { |task| msg_name task }
+  #   bee.work(n:3) { |task| msg_name task }
+  #
+  # Also helps prototype systems as the method doesn't need to exist
+  # yet. Prints that it doesn't exist and passes the data through
+  # as-is.
 
   def then msg_name, n:1
     m = context.method(msg_name) rescue nil
@@ -364,6 +429,17 @@ class WorkerBee
       work(n:n) { |obj| obj }
     end
   end
+
+  ##
+  # Forces a choke point at this point in the pipeline, causing all
+  # data prior to this point to finish before moving on. Returns a new
+  # instance of the pipeline.
+  #
+  #   bee
+  #     .input(*urls)
+  #     .then(:fetch_tasks, n:10)
+  #     .catch_up!
+  #     .then(:do_heavy_tasks, n:3)
 
   def catch_up!
     updaters = self.updaters
