@@ -48,14 +48,6 @@ class WorkerBee
 
   class BQ < Queue
     ##
-    # Initialize a BQ queue with +objs+.
-
-    def initialize objs = []
-      super()
-      concat objs
-    end
-
-    ##
     # Push multiple objects into the queue
 
     def concat objs
