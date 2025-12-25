@@ -11,7 +11,7 @@ Hoe.spec "worker_bee" do
 
   license "MIT"
 
-  require_ruby_version "> 3.1"
+  require_ruby_version ">= 3.2"
 end
 
 # vim: syntax=ruby
