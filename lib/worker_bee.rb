@@ -40,7 +40,7 @@ require 'thread'
 # * then msg_name, n:1
 
 class WorkerBee
-  VERSION = "1.0.0"     # :nodoc:
+  VERSION = "1.0.1"     # :nodoc:
   SENTINAL = Object.new # :nodoc:
 
   ##

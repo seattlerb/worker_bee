@@ -1,6 +1,11 @@
-=== 1.0.0 / 2011-03-10
+=== 1.0.1 / 2026-03-20
+
+* 1 bug fix:
+
+  * Bumped ruby to 3.2+.
+
+=== 1.0.0 / 2025-12-11
 
 * 1 major enhancement
 
-  * Birthday!
-
+  * Birthday! (actual release, started a decade before)
