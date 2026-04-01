@@ -1,6 +1,7 @@
 = worker_bee
 
-home :: http://seattlerb.org/
+home :: https://zenspider.com/projects/worker_bee.html
+code :: https://github.com/seattlerb/worker_bee
 
 == DESCRIPTION:
 
